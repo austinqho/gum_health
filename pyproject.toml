@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "healthsync"
+version = "0.1.0"
+description = "Wearable health observation transforms and local handoff logs for GUM."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "HealthSync contributors" }]
+dependencies = []
+
+[project.optional-dependencies]
+mac = [
+    "watchdog>=6",
+]
+oura = [
+    "certifi>=2024.8.30",
+]
+test = [
+    "pytest>=8",
+]
+all = [
+    "certifi>=2024.8.30",
+    "watchdog>=6",
+]
+
+[project.scripts]
+healthsync-watch = "health_observer.runtime.mac:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

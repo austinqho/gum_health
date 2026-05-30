@@ -1,0 +1,20 @@
+{
+  "oura": {
+    "client_id": "YOUR_OURA_CLIENT_ID",
+    "client_secret": "YOUR_OURA_CLIENT_SECRET",
+    "redirect_uri": "https://your-app.example.com/callback",
+    "callback_bind_host": "127.0.0.1",
+    "callback_bind_port": 8765,
+    "oura_poll_interval_seconds": 1800,
+    "scopes": ["daily", "workout", "spo2", "stress"],
+    "enabled_sources": [
+      "oura.daily_activity",
+      "oura.daily_readiness",
+      "oura.daily_sleep",
+      "oura.sleep",
+      "oura.daily_spo2",
+      "oura.daily_stress",
+      "oura.workout"
+    ]
+  }
+}
