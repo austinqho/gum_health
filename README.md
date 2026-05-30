@@ -25,11 +25,25 @@ One observation row (Apple step sample; `metadata` abbreviated):
 }
 ```
 
-## Use
+## Setup
 
 ```bash
 python3 -m pip install -e ".[mac,oura,whoop]"
 ```
+
+- **Apple** — install the [iOS Shortcut](https://www.icloud.com/shortcuts/b8665257c33b4be59e165439d27080a6),
+  allow large-data sharing (in Settings -> Shortcuts), add an Automation that runs it (either whenever you open a given app like iMessage, or set to run at a specific time), and run it once.
+- **Oura / WHOOP** — copy `config.example.json` → `~/.healthsync/config.json`, fill in credentials,
+  then authorize each provider: `python3 -m health_observer.providers.oura.auth` and
+  `python3 -m health_observer.providers.whoop.auth`.
+- **Hosted Oura (optional)** — if you prefer webhooks to local polling, `oura-webhook-integration/` is a
+  Vercel/Supabase reference for hosted Oura OAuth/webhooks.
+
+## Use
+
+Two ways to run, once set up:
+
+**Embed** — call `collect_once()` from your own code:
 
 ```python
 from health_observer import collect_once
@@ -42,20 +56,12 @@ p = default_paths()
 collect_once([AppleShortcutObserver(p), OuraObserver(p), WhoopObserver(p)])
 ```
 
-Each observer reads its source, dedups against local state, and appends to
+**Mac watcher** — double-click `HealthSync.command`; it polls Oura/WHOOP every 30 min and reacts to new Apple snapshots.
+
+Either way, each observer reads its source, dedups against local state, and appends to
 `~/Desktop/HealthSync/`: `observations.jsonl`, `raw_records.jsonl`, and `observations.md`. The
-Mac watcher additionally derives `daily_aggregation.md` and `full_reference.json` after each
-poll; embedders call `write_daily_aggregation()` / `write_rubric()` to refresh those.
-
-## Setup
-
-- **Apple** — install the [iOS Shortcut](https://www.icloud.com/shortcuts/b8665257c33b4be59e165439d27080a6),
-  allow large-data sharing (in Settings -> Shortcuts), add an Automation that runs it (either whenever you open a given app like iMessage, or set to run at a specific time), run once, then double-click `HealthSync.command`.
-- **Oura / WHOOP** — copy `config.example.json` → `~/.healthsync/config.json`, fill in credentials,
-  then authorize each provider: `python3 -m health_observer.providers.oura.auth` and
-  `python3 -m health_observer.providers.whoop.auth`. The watcher then polls every 30 min.
-- **Hosted Oura (optional)** — if you prefer webhooks to local polling, `oura-webhook-integration/` is a
-  Vercel/Supabase reference for hosted Oura OAuth/webhooks. 
+Mac watcher additionally derives `daily_aggregation.md` and `full_reference.json` after each poll;
+embedders call `write_daily_aggregation()` / `write_rubric()` to refresh those.
 
 ## Layout
 
