@@ -19,6 +19,9 @@ mac = [
 oura = [
     "certifi>=2024.8.30",
 ]
+whoop = [
+    "certifi>=2024.8.30",
+]
 test = [
     "pytest>=8",
 ]
@@ -32,6 +35,9 @@ healthsync-watch = "health_observer.runtime.mac:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+health_observer = ["rubric/base_reference.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

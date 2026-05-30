@@ -1,26 +1,56 @@
 """Oura OAuth helpers.
 
-Credentials are read from ~/.healthsync/config.json by default. Tokens are
-stored separately in ~/.healthsync/oura_tokens.json.
+Thin provider wrapper over the shared ``oauth_client``. Credentials are read from
+~/.healthsync/config.json by default. Tokens are stored separately in
+~/.healthsync/oura_tokens.json.
 """
 from __future__ import annotations
 
-import base64
 import json
-import secrets
-import ssl
-import time
-import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Any
 
+from ...oauth_client import (
+    OAuthProvider,
+    load_tokens,
+    save_tokens,
+    ssl_context,
+    token_needs_refresh,
+    with_expiry,
+)
+from ...oauth_client import build_authorize_url as _build_authorize_url
+from ...oauth_client import complete_local_authorization as _complete_local_authorization
+from ...oauth_client import exchange_code_for_tokens as _exchange_code_for_tokens
+from ...oauth_client import get_valid_access_token as _get_valid_access_token
+from ...oauth_client import refresh_tokens as _refresh_tokens
 from ...paths import HealthSyncPaths, default_paths
 
-AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
-TOKEN_URL = "https://api.ouraring.com/oauth/token"
-DEFAULT_SCOPES = ["daily", "workout", "spo2", "stress"]
-_SSL_CONTEXT = None
+OURA_PROVIDER = OAuthProvider(
+    name="Oura",
+    authorize_url="https://cloud.ouraring.com/oauth/authorize",
+    token_url="https://api.ouraring.com/oauth/token",
+    default_scopes=["daily", "workout", "spo2", "stress"],
+    client_auth="basic",  # Oura authenticates the client with a Basic header
+)
+
+DEFAULT_SCOPES = OURA_PROVIDER.default_scopes
+
+__all__ = [
+    "OURA_PROVIDER",
+    "OuraConfigError",
+    "build_authorize_url",
+    "complete_local_authorization",
+    "exchange_code_for_tokens",
+    "get_valid_access_token",
+    "load_config",
+    "load_oura_config",
+    "load_tokens",
+    "refresh_tokens",
+    "save_tokens",
+    "ssl_context",
+    "token_needs_refresh",
+    "with_expiry",
+]
 
 
 class OuraConfigError(RuntimeError):
@@ -48,102 +78,15 @@ def load_oura_config(paths: HealthSyncPaths) -> dict[str, Any]:
 
 
 def build_authorize_url(config: dict[str, Any], state: str | None = None) -> tuple[str, str]:
-    state = state or secrets.token_urlsafe(24)
-    scopes = config.get("scopes") or DEFAULT_SCOPES
-    if isinstance(scopes, str):
-        scope_value = scopes
-    else:
-        scope_value = " ".join(scopes)
-    query = {
-        "response_type": "code",
-        "client_id": config["client_id"],
-        "redirect_uri": config["redirect_uri"],
-        "scope": scope_value,
-        "state": state,
-    }
-    return f"{AUTHORIZE_URL}?{urllib.parse.urlencode(query)}", state
-
-
-def _token_request(config: dict[str, Any], form: dict[str, str]) -> dict[str, Any]:
-    body = urllib.parse.urlencode(form).encode()
-    credentials = f"{config['client_id']}:{config['client_secret']}".encode()
-    request = urllib.request.Request(
-        TOKEN_URL,
-        data=body,
-        headers={
-            "Authorization": "Basic " + base64.b64encode(credentials).decode(),
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=30, context=ssl_context()) as response:
-        return json.loads(response.read().decode())
-
-
-def ssl_context() -> ssl.SSLContext:
-    global _SSL_CONTEXT
-    if _SSL_CONTEXT is None:
-        try:
-            import certifi
-
-            _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-        except ImportError:
-            _SSL_CONTEXT = ssl.create_default_context()
-    return _SSL_CONTEXT
+    return _build_authorize_url(OURA_PROVIDER, config, state)
 
 
 def exchange_code_for_tokens(config: dict[str, Any], code: str) -> dict[str, Any]:
-    tokens = _token_request(
-        config,
-        {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": config["redirect_uri"],
-        },
-    )
-    return with_expiry(tokens)
+    return _exchange_code_for_tokens(OURA_PROVIDER, config, code)
 
 
 def refresh_tokens(config: dict[str, Any], refresh_token: str) -> dict[str, Any]:
-    tokens = _token_request(
-        config,
-        {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-        },
-    )
-    return with_expiry(tokens)
-
-
-def with_expiry(tokens: dict[str, Any]) -> dict[str, Any]:
-    expires_in = int(tokens.get("expires_in") or 0)
-    if expires_in:
-        tokens["expires_at"] = int(time.time()) + expires_in
-    return tokens
-
-
-def load_tokens(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    try:
-        return json.loads(path.read_text())
-    except json.JSONDecodeError:
-        return None
-
-
-def save_tokens(path: Path, tokens: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(tokens, indent=2, sort_keys=True))
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
-
-
-def token_needs_refresh(tokens: dict[str, Any]) -> bool:
-    expires_at = int(tokens.get("expires_at") or 0)
-    return not tokens.get("access_token") or (expires_at and time.time() >= expires_at - 120)
+    return _refresh_tokens(OURA_PROVIDER, config, refresh_token)
 
 
 def get_valid_access_token(paths: HealthSyncPaths) -> str | None:
@@ -151,51 +94,13 @@ def get_valid_access_token(paths: HealthSyncPaths) -> str | None:
         config = load_oura_config(paths)
     except OuraConfigError:
         return None
-    tokens = load_tokens(paths.oura_tokens_file)
-    if not tokens:
-        return None
-    if token_needs_refresh(tokens):
-        refresh_token = tokens.get("refresh_token")
-        if not refresh_token:
-            return None
-        refreshed = refresh_tokens(config, refresh_token)
-        if "refresh_token" not in refreshed:
-            refreshed["refresh_token"] = refresh_token
-        if "scope" not in refreshed and tokens.get("scope"):
-            refreshed["scope"] = tokens["scope"]
-        save_tokens(paths.oura_tokens_file, refreshed)
-        tokens = refreshed
-    return tokens.get("access_token")
+    return _get_valid_access_token(OURA_PROVIDER, config, paths.oura_tokens_file)
 
 
 def complete_local_authorization(paths: HealthSyncPaths | None = None) -> None:
-    from .callback import catch_oauth_callback
-
     paths = paths or default_paths()
     config = load_oura_config(paths)
-    authorize_url, state = build_authorize_url(config)
-    print("Open this URL and approve Oura access:")
-    print(authorize_url)
-    callback = catch_oauth_callback(
-        config["redirect_uri"],
-        expected_state=state,
-        bind_host=config.get("callback_bind_host"),
-        bind_port=config.get("callback_bind_port"),
-        timeout=_callback_timeout(config),
-    )
-    tokens = exchange_code_for_tokens(config, callback["code"])
-    if callback.get("scope"):
-        tokens["scope"] = callback["scope"]
-    save_tokens(paths.oura_tokens_file, tokens)
-    print(f"Saved Oura tokens to {paths.oura_tokens_file}")
-
-
-def _callback_timeout(config: dict[str, Any]) -> int | None:
-    value = config.get("callback_timeout_seconds")
-    if value is None:
-        return None
-    timeout = int(value)
-    return timeout if timeout > 0 else None
+    _complete_local_authorization(OURA_PROVIDER, config, paths.oura_tokens_file)
 
 
 if __name__ == "__main__":

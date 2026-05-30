@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from ...schema import LOCAL_TZ, base_metadata, day_start_pt, hash_raw_record, make_observation, parse_datetime, to_pt
-from ..formatting import fmt_dt, fmt_num, maybe_text, miles, present
+from ..formatting import delta_suffix, duration_text, fmt_dt, fmt_num, maybe_text, miles, present
 
 ACTIVITY_CLASS_LABELS = {
     "0": "non-wear",
@@ -41,32 +41,10 @@ def oura_raw_version(record: dict) -> str:
     return hash_raw_record(record)
 
 
-def duration_text(seconds) -> str:
-    if not present(seconds):
-        return "0m"
-    seconds = int(seconds)
-    hours, remainder = divmod(seconds, 3600)
-    minutes = remainder // 60
-    if hours and minutes:
-        return f"{hours}h {minutes}m"
-    if hours:
-        return f"{hours}h"
-    return f"{minutes}m"
-
-
 def total_with_delta(label: str, current, previous, delta_unit: str, verb: str = "is") -> str:
     if not present(current):
         return ""
-    text = f"{label} {verb} now {fmt_num(current)}"
-    if present(previous):
-        delta = current - previous
-        if delta > 0:
-            text += f", up {fmt_num(delta)} {delta_unit} since the previous HealthSync observation"
-        elif delta < 0:
-            text += f", down {fmt_num(abs(delta))} {delta_unit} since the previous HealthSync observation"
-        else:
-            text += ", unchanged since the previous HealthSync observation"
-    return text
+    return f"{label} {verb} now {fmt_num(current)}" + delta_suffix(current, previous, unit=delta_unit)
 
 
 def daily_activity_delta(record: dict, previous_record: dict | None) -> dict:
@@ -83,16 +61,7 @@ def daily_activity_delta(record: dict, previous_record: dict | None) -> dict:
 def stress_total_with_delta(label: str, current, previous) -> str:
     if not present(current):
         return ""
-    text = f"{label} is now {duration_text(current)}"
-    if present(previous):
-        delta = current - previous
-        if delta > 0:
-            text += f", up {duration_text(delta)} since the previous HealthSync observation"
-        elif delta < 0:
-            text += f", down {duration_text(abs(delta))} since the previous HealthSync observation"
-        else:
-            text += ", unchanged since the previous HealthSync observation"
-    return text
+    return f"{label} is now {duration_text(current)}" + delta_suffix(current, previous, fmt=duration_text)
 
 
 def daily_stress_delta(record: dict, previous_record: dict | None) -> dict:

@@ -6,8 +6,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from .paths import HealthSyncPaths, default_paths, ensure_output_dirs
-from .providers.formatting import fmt_num
+from .paths import HealthSyncPaths, default_paths, ensure_output_dirs, write_text_if_changed
+from .providers.formatting import duration_text, fmt_num
 from .schema import LOCAL_TZ, parse_datetime, to_pt
 
 
@@ -19,21 +19,22 @@ def write_daily_aggregation(paths: HealthSyncPaths | None = None) -> Path | None
     ensure_output_dirs(paths)
     observations = load_observations(paths.observations_log)
     text = render_daily_aggregation(observations)
-    paths.daily_aggregation_md.write_text(text)
+    write_text_if_changed(paths.daily_aggregation_md, text)
     return paths.daily_aggregation_md
 
 
 def render_daily_aggregation(observations: list[dict[str, Any]]) -> str:
-    """Render one representative Apple day and one representative Oura day."""
+    """Render one representative Apple day, Oura day, and WHOOP day."""
     unique_observations = dedupe_observations(observations)
     apple_day = choose_apple_day(unique_observations)
     oura_day = choose_oura_day(unique_observations)
+    whoop_day = choose_whoop_day(unique_observations)
 
     lines = [
         "# Daily Aggregation",
         "",
         "This optional file is a more organized view of observations.jsonl. It does not replace raw_records.jsonl or observations.jsonl.",
-        "Provider observations can arrive retroactively, so this groups one Apple Health day and one Oura day into a readable timeline.",
+        "Provider observations can arrive retroactively, so this groups one Apple Health day, one Oura day, and one WHOOP day into a readable timeline.",
         "",
     ]
     if apple_day:
@@ -44,6 +45,10 @@ def render_daily_aggregation(observations: list[dict[str, Any]]) -> str:
         lines.extend(render_oura_day(unique_observations, oura_day))
     else:
         lines.extend(["## Oura", "", "No Oura observations found.", ""])
+    if whoop_day:
+        lines.extend(render_whoop_day(unique_observations, whoop_day))
+    else:
+        lines.extend(["## WHOOP", "", "No WHOOP observations found.", ""])
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -97,6 +102,69 @@ def choose_oura_day(observations: list[dict[str, Any]]) -> str | None:
         return value, day
 
     return max(by_day.items(), key=score)[0]
+
+
+def choose_whoop_day(observations: list[dict[str, Any]]) -> str | None:
+    by_day: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for observation in observations:
+        if str(observation.get("source", "")).startswith("whoop."):
+            day = observation_day(observation)
+            if day:
+                by_day[day].append(observation)
+    if not by_day:
+        return None
+
+    def score(day_items: tuple[str, list[dict[str, Any]]]) -> tuple[int, str]:
+        day, items = day_items
+        sources = {item.get("source") for item in items}
+        value = 0
+        value += 30 if "whoop.daily_summary" in sources else 0
+        value += min(sum(1 for item in items if item.get("source") == "whoop.workout"), 20)
+        value += 5 if "whoop.sleep" in sources else 0
+        return value, day
+
+    return max(by_day.items(), key=score)[0]
+
+
+def render_whoop_day(observations: list[dict[str, Any]], day: str) -> list[str]:
+    items = [
+        observation
+        for observation in observations
+        if str(observation.get("source", "")).startswith("whoop.") and observation_day(observation) == day
+    ]
+    lines = [
+        f"## WHOOP - {day}",
+        "",
+        "Identity note: these local observations do not currently carry a WHOOP user label, so this view groups by provider day.",
+        "A WHOOP cycle is wake-to-wake, so a day may start the previous evening.",
+        "",
+    ]
+    summary = latest_source(items, "whoop.daily_summary")
+    if summary:
+        lines.extend(["### Day summary (cycle + recovery + sleep)", "", f"- {summary['text']}", ""])
+
+    strain = latest_source(items, "whoop.cycle")
+    if strain:
+        lines.extend(["### Strain (cumulative cycle total)", "", f"- {strain['text']}", ""])
+
+    naps = [item for item in items if item.get("source") == "whoop.sleep"]
+    if naps:
+        lines.extend(["### Naps", ""])
+        for nap in naps:
+            lines.append(f"- {nap['text']}")
+        lines.append("")
+
+    workouts = unique_by(
+        [item for item in items if item.get("source") == "whoop.workout"],
+        key=lambda item: item.get("text", ""),
+    )
+    if workouts:
+        lines.extend(["### Workouts", ""])
+        for workout in workouts:
+            lines.append(f"- {workout['text']}")
+        lines.append("")
+
+    return lines
 
 
 def observation_day(observation: dict[str, Any]) -> str | None:
@@ -272,19 +340,6 @@ def delta_phrase(deltas: dict[str, Any], *, seconds: bool = False) -> str:
         else:
             parts.append(f"{key} unchanged")
     return "; ".join(parts)
-
-
-def duration_text(seconds) -> str:
-    if seconds is None:
-        return "unknown"
-    seconds = int(seconds)
-    hours, remainder = divmod(seconds, 3600)
-    minutes = remainder // 60
-    if hours and minutes:
-        return f"{hours}h {minutes}m"
-    if hours:
-        return f"{hours}h"
-    return f"{minutes}m"
 
 
 def short_time(value: Any) -> str:

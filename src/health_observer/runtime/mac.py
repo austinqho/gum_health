@@ -10,6 +10,7 @@ from ..observer import Observer
 from ..paths import HealthSyncPaths, default_paths, ensure_output_dirs
 from ..collection import collect_once, default_observers
 from ..daily_aggregation import write_daily_aggregation
+from ..rubric import write_rubric
 
 LogFn = Callable[[str], None]
 
@@ -40,6 +41,7 @@ def poll_forever(
 
     collect_once(observers, paths=paths, lock=lock, log=log)
     refresh_daily_aggregation(paths, log)
+    refresh_rubric(paths, log)
 
     from watchdog.observers import Observer as WatchdogObserver
 
@@ -101,6 +103,7 @@ class PeriodicPoller:
             try:
                 collect_once([observer], lock=self.lock, log=self.log)
                 refresh_daily_aggregation(self.paths, self.log)
+                refresh_rubric(self.paths, self.log)
             except Exception as e:
                 self.log(f"[watcher] error polling {observer.name}: {e}")
             finally:
@@ -142,6 +145,7 @@ class HealthSyncHandler:
         try:
             collect_once(observers, lock=self.lock, log=self.log)
             refresh_daily_aggregation(self.paths, self.log)
+            refresh_rubric(self.paths, self.log)
         except Exception as e:
             self.log(f"[watcher] error processing: {e}")
 
@@ -176,6 +180,24 @@ def refresh_daily_aggregation(paths: HealthSyncPaths, log: LogFn) -> None:
         write_daily_aggregation(paths)
     except Exception as e:
         log(f"[watcher] daily aggregation failed: {e}")
+
+
+def refresh_rubric(paths: HealthSyncPaths, log: LogFn) -> None:
+    # Cadence decision (change it here if you want, but read this first):
+    # We refresh the rubric on every poll tick, NOT on a daily timer - even though the rubric
+    # only meaningfully changes ~once a day (a new HRV/recovery reading). Two reasons:
+    #   1. write_rubric()'s write is idempotent, so the ~47 redundant daily runs are no-ops.
+    #   2. Cadence is a *runtime* concern and stays here. write_rubric() is a pure
+    #      regenerate-from-current-data function with no notion of time. Putting a clock inside
+    #      it (a "has a day passed?" check or a last-run timestamp file) would leak a scheduling
+    #      concern into the module, killing its idempotence and testability. A daily timer would
+    #      also add a second scheduler and its edge cases (what fires if the Mac slept past
+    #      midnight?). "Everything refreshes on the poll tick" is the simpler invariant.
+    # If you do want a daily cadence, change it HERE in the runtime - keep the clock out of rubric/.
+    try:
+        write_rubric(paths)
+    except Exception as e:
+        log(f"[watcher] metric rubric refresh failed: {e}")
 
 
 def main() -> None:

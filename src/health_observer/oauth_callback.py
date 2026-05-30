@@ -1,4 +1,4 @@
-"""Local OAuth callback catcher for Oura development auth."""
+"""Local OAuth callback catcher for development authorization flows."""
 from __future__ import annotations
 
 import threading
@@ -15,13 +15,14 @@ def catch_oauth_callback(
     redirect_uri: str,
     *,
     expected_state: str,
+    provider_name: str = "OAuth",
     bind_host: str | None = None,
     bind_port: int | None = None,
     timeout: int | None = None,
 ) -> dict[str, str]:
     parsed = urllib.parse.urlparse(redirect_uri)
     if parsed.scheme not in {"http", "https"}:
-        raise OAuthCallbackError("Oura redirect URI must be http:// or https://")
+        raise OAuthCallbackError(f"{provider_name} redirect URI must be http:// or https://")
 
     is_local_redirect = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
     host = bind_host or (parsed.hostname if is_local_redirect else "127.0.0.1") or "127.0.0.1"
@@ -42,7 +43,7 @@ def catch_oauth_callback(
                 return
             if "error" in params:
                 error = params.get("error", ["unknown error"])[0]
-                self._respond(400, f"Oura returned an error: {error}")
+                self._respond(400, f"{provider_name} returned an error: {error}")
                 result["error"] = error
                 done.set()
                 return
@@ -54,7 +55,7 @@ def catch_oauth_callback(
                 return
             result["code"] = code
             result["scope"] = params.get("scope", [""])[0]
-            self._respond(200, "Oura authorization complete. You can close this tab.")
+            self._respond(200, "Success. Authorization complete. You can close this page now.")
             done.set()
 
         def log_message(self, format: str, *args) -> None:
@@ -70,7 +71,7 @@ def catch_oauth_callback(
 
     server = HTTPServer((host, port), CallbackHandler)
     server.timeout = 1
-    print(f"Waiting for Oura redirect at {redirect_uri}")
+    print(f"Waiting for {provider_name} redirect at {redirect_uri}")
     print(f"Listening locally on http://{host}:{port}{expected_path}")
     if timeout is None:
         print("No timeout configured; press Ctrl-C to stop waiting.")
@@ -80,11 +81,11 @@ def catch_oauth_callback(
     try:
         while not done.is_set():
             if deadline is not None and time.monotonic() >= deadline:
-                raise OAuthCallbackError("Timed out waiting for Oura OAuth callback")
+                raise OAuthCallbackError(f"Timed out waiting for {provider_name} OAuth callback")
             server.handle_request()
     finally:
         server.server_close()
 
     if "code" not in result:
-        raise OAuthCallbackError(result.get("error") or "Oura OAuth callback failed")
+        raise OAuthCallbackError(result.get("error") or f"{provider_name} OAuth callback failed")
     return result

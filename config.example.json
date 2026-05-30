@@ -16,5 +16,20 @@
       "oura.daily_stress",
       "oura.workout"
     ]
+  },
+  "whoop": {
+    "client_id": "YOUR_WHOOP_CLIENT_ID",
+    "client_secret": "YOUR_WHOOP_CLIENT_SECRET",
+    "redirect_uri": "https://your-app.example.com/whoop/callback",
+    "callback_bind_host": "127.0.0.1",
+    "callback_bind_port": 8766,
+    "whoop_poll_interval_seconds": 1800,
+    "scopes": ["offline", "read:cycles", "read:sleep", "read:recovery", "read:workout"],
+    "enabled_sources": [
+      "whoop.cycle",
+      "whoop.sleep",
+      "whoop.recovery",
+      "whoop.workout"
+    ]
   }
 }

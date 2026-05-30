@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "note": "Static generic base reference, hand-editable and version-controlled. write_rubric() loads this, computes per-user baselines from observations.jsonl, and writes the merged full_reference.json for handoff. This base file is never auto-overwritten. It is a reference scale, not an observation: read a metric value together with the matching entry to interpret it.",
+  "direction_legend": {
+    "higher_is_better": "above the range/baseline is the favorable direction",
+    "lower_is_better": "below the range/baseline is the favorable direction",
+    "neutral": "not good or bad on its own; interpret with related metrics",
+    "stable_is_normal": "steady is normal; deviations either way are notable"
+  },
+  "objective": {
+    "whoop.strain": {
+      "label": "WHOOP strain",
+      "scale": "0-21",
+      "unit": "strain",
+      "kind": "cumulative_daily_total",
+      "direction": "neutral",
+      "bands": [[0, 9.99, "light"], [10, 13.99, "moderate"], [14, 17.99, "strenuous"], [18, 21, "all-out"]],
+      "note": "Cumulative running total for a WHOOP cycle (wake-to-wake); take the latest value, do not sum updates. High strain is only 'bad' relative to low recovery."
+    },
+    "whoop.recovery_score": {
+      "label": "WHOOP recovery",
+      "scale": "0-100",
+      "unit": "percent",
+      "kind": "morning_final",
+      "direction": "higher_is_better",
+      "bands": [[0, 33, "red / under-recovered"], [34, 66, "yellow / moderate"], [67, 100, "green / well-recovered"]],
+      "note": "Computed once each morning and final for the cycle; already normalized to the individual."
+    },
+    "whoop.sleep_performance": {
+      "label": "WHOOP sleep performance",
+      "scale": "0-100",
+      "unit": "percent",
+      "kind": "morning_final",
+      "direction": "higher_is_better",
+      "bands": [],
+      "note": "Share of the night's sleep need that was met; higher is better."
+    },
+    "whoop.sleep_efficiency": {
+      "label": "WHOOP sleep efficiency",
+      "scale": "0-100",
+      "unit": "percent",
+      "kind": "morning_final",
+      "direction": "higher_is_better",
+      "bands": [[0, 84.99, "below typical"], [85, 100, "good"]],
+      "note": "Time asleep / time in bed."
+    },
+    "oura.score": {
+      "label": "Oura readiness / sleep / activity score",
+      "scale": "0-100",
+      "unit": "score",
+      "kind": "daily_cumulative",
+      "direction": "higher_is_better",
+      "bands": [[0, 69, "pay attention"], [70, 84, "good"], [85, 100, "optimal"]],
+      "note": "Daily activity and stress totals are cumulative for the Oura day (take latest, not summed)."
+    }
+  },
+  "personal": {
+    "whoop.hrv_rmssd": {
+      "label": "WHOOP HRV (RMSSD)",
+      "source_prefix": "whoop.",
+      "metric_key": "hrv_rmssd",
+      "unit": "ms",
+      "direction": "higher_is_better",
+      "note": "HRV rises with parasympathetic (rest/recovery) activity and fitness; higher than baseline = better recovered, a drop signals stress, fatigue, or illness. Opposite direction from resting heart rate. Measured by WHOOP during sleep, so keep its baseline separate from Oura HRV."
+    },
+    "whoop.resting_heart_rate": {
+      "label": "WHOOP resting heart rate",
+      "source_prefix": "whoop.",
+      "metric_key": "resting_heart_rate",
+      "unit": "bpm",
+      "direction": "lower_is_better",
+      "note": "Lower than baseline = better recovered; an elevation signals stress, illness, or under-recovery."
+    },
+    "whoop.respiratory_rate": {
+      "label": "WHOOP respiratory rate",
+      "source_prefix": "whoop.",
+      "metric_key": "respiratory_rate",
+      "unit": "breaths/min",
+      "direction": "stable_is_normal",
+      "note": "Usually steady night to night; a sustained rise can indicate illness or strain."
+    },
+    "whoop.skin_temp_celsius": {
+      "label": "WHOOP skin temperature",
+      "source_prefix": "whoop.",
+      "metric_key": "skin_temp_celsius",
+      "unit": "C",
+      "direction": "stable_is_normal",
+      "note": "Deviations from baseline can indicate illness or (for some users) menstrual-cycle phase."
+    },
+    "oura.average_hrv": {
+      "label": "Oura HRV (overnight average)",
+      "source_prefix": "oura.",
+      "metric_key": "average_hrv",
+      "unit": "ms",
+      "direction": "higher_is_better",
+      "note": "Oura's overnight average HRV; higher than baseline = better recovered. Measured differently from WHOOP HRV, so its baseline is kept separate."
+    },
+    "oura.lowest_heart_rate": {
+      "label": "Oura lowest heart rate (overnight)",
+      "source_prefix": "oura.",
+      "metric_key": "lowest_heart_rate",
+      "unit": "bpm",
+      "direction": "lower_is_better",
+      "note": "Oura's overnight low; NOT the same metric as WHOOP resting heart rate, so its baseline is kept separate."
+    }
+  }
+}

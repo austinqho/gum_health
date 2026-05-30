@@ -12,6 +12,7 @@ class HealthSyncPaths:
     config_dir: Path
     config_file: Path
     oura_tokens_file: Path
+    whoop_tokens_file: Path
     observations_log: Path
     observations_md: Path
     raw_records_log: Path
@@ -33,6 +34,7 @@ def default_paths(home: Path | None = None) -> HealthSyncPaths:
         config_dir=config_dir,
         config_file=config_dir / "config.json",
         oura_tokens_file=config_dir / "oura_tokens.json",
+        whoop_tokens_file=config_dir / "whoop_tokens.json",
         observations_log=desktop_dir / "observations.jsonl",
         observations_md=desktop_dir / "observations.md",
         raw_records_log=desktop_dir / "raw_records.jsonl",
@@ -49,3 +51,17 @@ def ensure_output_dirs(paths: HealthSyncPaths) -> None:
     paths.desktop_dir.mkdir(parents=True, exist_ok=True)
     paths.state_dir.mkdir(parents=True, exist_ok=True)
     paths.config_dir.mkdir(parents=True, exist_ok=True)
+
+
+def write_text_if_changed(path: Path, text: str) -> bool:
+    """Write ``text`` only if it differs from what is on disk.
+
+    Returns True if the file was written. Lets derived-view refreshers (daily
+    aggregation, rubric) run on every poll tick without churning file mtimes when
+    nothing changed - the runtime owns cadence, the writers stay idempotent.
+    """
+    if path.exists() and path.read_text() == text:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return True

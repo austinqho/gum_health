@@ -18,10 +18,12 @@ def default_observers(paths: HealthSyncPaths) -> list[Observer]:
     """
     from .providers.apple.shortcut import AppleShortcutObserver
     from .providers.oura.api import OuraObserver
+    from .providers.whoop.api import WhoopObserver
 
     return [
         AppleShortcutObserver(paths),
         OuraObserver(paths),
+        WhoopObserver(paths),
     ]
 
 
@@ -34,8 +36,8 @@ def collect_once(
 ) -> list[CollectionResult]:
     """Collect once from registered observers.
 
-    When observers are omitted, the default Apple Shortcut and Oura observers
-    are created from the provided paths or the local default paths.
+    When observers are omitted, the default Apple Shortcut, Oura, and WHOOP
+    observers are created from the provided paths or the local default paths.
     """
     if observers is None:
         paths = paths or default_paths()

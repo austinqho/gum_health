@@ -14,6 +14,10 @@ DEFAULT_ENABLED_SOURCES = {
     "oura.daily_spo2",
     "oura.daily_stress",
     "oura.workout",
+    "whoop.cycle",
+    "whoop.sleep",
+    "whoop.recovery",
+    "whoop.workout",
 }
 
 OPTIONAL_SOURCES = {
@@ -32,4 +36,6 @@ SKIPPED_SOURCES = {
     "oura.ring_configuration": "device configuration data, not user context",
     "oura.rest_mode_period": "rest-mode state; not enabled until product semantics are clear",
     "oura.sleep_time": "recommendation/status data rather than raw observation",
+    "whoop.profile": "profile data such as name and email",
+    "whoop.body_measurement": "profile/body measurements such as height and weight",
 }
